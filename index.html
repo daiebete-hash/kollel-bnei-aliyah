@@ -998,3 +998,267 @@ async function renderAdmin(){
 
  if(mErr||pErr){
    box.innerHTML='<div class="card error">לא ניתן לטעון את נתוני החבורה כרגע.</div>';
+   return;
+ }
+
+ const rows=members||[], pr=progress||[];
+ const totalMembers=rows.length;
+ const completed=pr.filter(x=>x.status==='completed').length;
+ const partial=pr.filter(x=>x.status==='partial').length;
+ const kinyanCompleted=pr.filter(x=>x.kinyan_status==='completed').length;
+ const kinyanWeeks=weeks.filter(w=>String(w.kinyan_chochma||'').trim()!=='').length;
+ const totalPossible=Math.max(1,totalMembers*weeks.length);
+ const kinyanPossible=Math.max(1,totalMembers*kinyanWeeks);
+ const avg=Math.round(completed/totalPossible*100);
+ const kavg=Math.round(kinyanCompleted/kinyanPossible*100);
+
+ const memberRows=rows.map(m=>{
+   const x=pr.filter(p=>p.user_id===m.id);
+   const done=x.filter(p=>p.status==='completed').length;
+   const par=x.filter(p=>p.status==='partial').length;
+   const kin=x.filter(p=>p.kinyan_status==='completed').length;
+   const pct=weeks.length?Math.round(done/weeks.length*100):0;
+   const kinyanWeeks=weeks.filter(w=>String(w.kinyan_chochma||'').trim()!=='').length;
+   const kpct=kinyanWeeks?Math.round(kin/kinyanWeeks*100):0;
+   return `<tr>
+    <td><b>${esc(m.full_name||'ללא שם')}</b>${m.role==='admin'?' 👑':''}<br><span class="meta">${esc(m.role||'member')}</span></td>
+    <td>${done}</td><td>${par}</td><td>${pct}%</td><td>${kin}</td><td>${kpct}%</td>
+    <td><button class="status" data-member="${esc(m.id)}">פרטים</button></td>
+   </tr>`;
+ }).join('');
+
+ box.innerHTML=`
+ <div class="admin-dashboard-head">
+   <span class="badge">ניהול החבורה</span>
+   <h2>לוח הבקרה של החבורה</h2>
+   <p>תמונה מרכזית של החברים וההתקדמות בתכנית הלימוד</p>
+ </div>
+
+ <div class="admin-stat-grid">
+   <div class="admin-stat"><div class="admin-stat-label">חברים רשומים</div><div class="admin-stat-value">${totalMembers}</div></div>
+   <div class="admin-stat"><div class="admin-stat-label">התקדמות ממוצעת</div><div class="admin-stat-value">${avg}%</div></div>
+   <div class="admin-stat"><div class="admin-stat-label">קנין חכמה ממוצע</div><div class="admin-stat-value">${kavg}%</div></div>
+   <div class="admin-stat"><div class="admin-stat-label">השלמות לימוד</div><div class="admin-stat-value">${completed}</div></div>
+ </div>
+
+ <div class="card admin-table-card">
+  <div class="admin-table-head"><span class="badge">חברי החבורה</span><h2 style="margin-top:12px">התקדמות חברי החבורה</h2></div>
+  <div class="admin-table-wrap">
+  <table style="width:100%;border-collapse:collapse">
+   <thead><tr>
+    <th>חבר</th><th>הושלם</th><th>חלקי</th><th>לימוד</th>
+    <th>קנין</th><th>% קנין</th><th></th>
+   </tr></thead>
+   <tbody>${memberRows||'<tr><td colspan="7">אין חברים רשומים.</td></tr>'}</tbody>
+  </table></div>
+ </div>
+
+ <div id="memberDetails"></div>
+
+ <div class="card editor-card">
+   <div class="editor-head">
+     <span class="badge">ניהול תכנית</span>
+     <h2>עריכת תכנית הלימוד</h2>
+   </div>
+   <div class="editor-body">
+     <label>בחירת שבוע</label>
+     <select id="adminWeek">${weeks.map((x,i)=>`<option value="${i}" ${i===currentIndex?'selected':''}>${esc(x.week_label)}</option>`).join('')}</select>
+     <div id="editor"></div>
+   </div>
+ </div>`;;
+
+ document.getElementById('adminWeek').onchange=drawEditor;
+ drawEditor();
+
+ box.querySelectorAll('[data-member]').forEach(btn=>{
+   btn.onclick=()=>showMemberDetails(btn.dataset.member,rows,pr);
+ });
+}
+
+function showMemberDetails(memberId,members,pr){
+ const m=members.find(x=>String(x.id)===String(memberId));
+ const list=pr.filter(x=>String(x.user_id)===String(memberId));
+ const map=new Map(list.map(x=>[String(x.study_week_id),x]));
+ const detail=weeks.map((w,i)=>{
+   const x=map.get(String(w.id));
+   const st=x?.status||'not_started';
+   const ks=x?.kinyan_status||'not_started';
+   const stText=st==='completed'?'✓ הושלם':st==='partial'?'◐ חלקי':'○ טרם התחיל';
+   const kText=ks==='completed'?'✓ הושלם':ks==='partial'?'◐ חלקי':'○ טרם התחיל';
+   return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
+     <b>${esc(w.week_label||('שבוע '+(i+1)))}</b><br>
+     <span class="meta">${stText} · קנין חכמה: ${kText}</span>
+   </div>`;
+ }).join('');
+
+ document.getElementById('memberDetails').innerHTML=`
+ <div class="card member-detail-card">
+  <span class="badge">פירוט אישי</span><h2 style="margin-top:12px">פירוט התקדמות — ${esc(m?.full_name||'')}</h2>
+  ${detail}
+ </div>`;
+ document.getElementById('memberDetails').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function drawEditor(){
+ const i=Number(document.getElementById('adminWeek').value),w=weeks[i],root=document.getElementById('editor');
+ root.innerHTML=`<div class="admin-grid" style="margin-top:18px">
+ <div><label>שבוע</label><input id="a_week" value="${esc(w.week_label)}"></div>
+ <div><label>תאריכים</label><input id="a_dates" value="${esc(w.hebrew_dates||'')}"></div>
+ <div><label>פרשה</label><input id="a_parasha" value="${esc(w.parasha||'')}"></div>
+ <div><label>זמן</label><input id="a_zman" value="${esc(w.zman||'')}"></div>
+ <div class="wide"><label>הספק</label><input id="a_hespek" value="${esc(w.hespek||'')}"></div>
+ <div><label>פרק</label><input id="a_perek" value="${esc(w.perek||'')}"></div>
+ <div><label>קנין חכמה</label><input id="a_kinyan" value="${esc(w.kinyan_chochma||'')}"></div>
+ </div>
+ <div class="editor-note">שינוי ההספק יעדכן אוטומטית את כל השבועות הבאים לפי שני דפים לשבוע.</div>
+ <div class="mareh-admin">
+   <label>מראה מקומות לשבוע זה</label>
+   <input id="marehFile" type="file" accept="application/pdf,.pdf">
+   <div class="mareh-current">${w.mareh_mekomot_path?`קיים קובץ: <b>${esc(w.mareh_mekomot_name||'מראה מקומות')}</b>`:'לא הועלה עדיין מראה מקומות לשבוע זה.'}</div>
+   <button class="primary" id="uploadMarehBtn" style="margin-top:12px">העלאת מראה מקומות</button>
+   ${w.mareh_mekomot_path?'<button class="mareh-remove" id="removeMarehBtn">מחיקת הקובץ</button>':''}
+ </div>
+ <button class="primary editor-save" id="saveWeek">שמירה ועדכון אוטומטי של ההמשך</button>`;
+ document.getElementById('saveWeek').onclick=()=>saveWeek(i);
+ document.getElementById('uploadMarehBtn').onclick=()=>uploadMarehMekomot(i);
+ if(w.mareh_mekomot_path) document.getElementById('removeMarehBtn').onclick=()=>removeMarehMekomot(i);
+}
+const hebrewNumerals={'א':1,'ב':2,'ג':3,'ד':4,'ה':5,'ו':6,'ז':7,'ח':8,'ט':9,'י':10,'כ':20,'ך':20,'ל':30,'מ':40,'ם':40,'נ':50,'ן':50,'ס':60,'ע':70,'פ':80,'ף':80,'צ':90,'ץ':90,'ק':100,'ר':200,'ש':300,'ת':400};
+function hebrewToNumber(text){
+ const clean=(text||'').replace(/[׳״'"`\s]/g,'');
+ if(!clean)return NaN;
+ let n=0; for(const ch of clean){if(hebrewNumerals[ch]==null)return NaN;n+=hebrewNumerals[ch];}
+ return n;
+}
+function numberToHebrew(n){
+ if(!Number.isInteger(n)||n<1||n>999)return String(n);
+ const ones=['','א','ב','ג','ד','ה','ו','ז','ח','ט'];
+ const tens=['','י','כ','ל','מ','נ','ס','ע','פ','צ'];
+ const hundreds=['','ק','ר','ש','ת'];
+ let out='';
+ while(n>=400){out+='ת';n-=400}
+ if(n>=100){out+=hundreds[Math.floor(n/100)];n%=100}
+ if(n===15)return out+'ט״ו';
+ if(n===16)return out+'ט״ז';
+ if(n>=10){out+=tens[Math.floor(n/10)];n%=10}
+ out+=ones[n];
+ if(out.length===1)return out+'׳';
+ return out.slice(0,-1)+'״'+out.slice(-1);
+}
+function parseHespekRange(hespek){
+ const h=(hespek||'').trim();
+ // Acepta, por ejemplo:
+ // דף מ׳–מ״א
+ // דף מ׳ ע״א – דף מ״א ע״ב
+ const re=/דף\s*([א-ת׳״"']+)(?:\s*ע״?[אב])?\s*[-–—]\s*(?:דף\s*)?([א-ת׳״"']+)(?:\s*ע״?[אב])?/;
+ const m=h.match(re);
+ if(!m)return null;
+ const start=hebrewToNumber(m[1]),end=hebrewToNumber(m[2]);
+ if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)return null;
+ return {start,end,withAmud:/ע״?[אב]/.test(h)};
+}
+function makeTwoDafHespek(start,withAmud){
+ const end=start+1;
+ if(withAmud) return `דף ${numberToHebrew(start)} ע״א – דף ${numberToHebrew(end)} ע״ב`;
+ return `דף ${numberToHebrew(start)}–${numberToHebrew(end)}`;
+}
+async function openMarehMekomot(w,download){
+ if(!user){show('personal');message('יש להתחבר כדי לצפות או להוריד את מראה המקומות.');return}
+ const {data,error}=await sb.storage.from('mareh-mekomot').createSignedUrl(w.mareh_mekomot_path,300,{download:download?true:false});
+ if(error){alert('לא ניתן לפתוח את הקובץ: '+error.message);return}
+ window.open(data.signedUrl,'_blank','noopener');
+}
+function cleanFileName(name){return String(name||'mareh-mekomot.pdf').replace(/[^A-Za-z0-9._-]/g,'_')}
+async function uploadMarehMekomot(i){
+ if(profile?.role!=='admin'){alert('הגישה מיועדת למנהל בלבד.');return}
+ const w=weeks[i],input=document.getElementById('marehFile'),file=input?.files?.[0];
+ if(!file){alert('יש לבחור קובץ PDF.');return}
+ if(file.type && file.type!=='application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){alert('יש להעלות קובץ PDF בלבד.');return}
+ if(file.size>20*1024*1024){alert('הקובץ גדול מדי. הגודל המרבי הוא 20MB.');return}
+ const path=`week-${w.id}/${Date.now()}-${cleanFileName(file.name)}`;
+ const btn=document.getElementById('uploadMarehBtn'); if(btn){btn.disabled=true;btn.textContent='מעלה...'}
+ try{
+   const {error:upErr}=await sb.storage.from('mareh-mekomot').upload(path,file,{upsert:false,contentType:'application/pdf'});
+   if(upErr) throw upErr;
+   const {error:dbErr}=await sb.from('study_weeks').update({mareh_mekomot_path:path,mareh_mekomot_name:file.name,mareh_mekomot_updated_at:new Date().toISOString()}).eq('id',w.id);
+   if(dbErr){await sb.storage.from('mareh-mekomot').remove([path]);throw dbErr}
+   if(w.mareh_mekomot_path) await sb.storage.from('mareh-mekomot').remove([w.mareh_mekomot_path]);
+   await loadWeeks();
+   const sel=document.getElementById('adminWeek');if(sel){sel.value=i;drawEditor()}
+   alert('מראה המקומות הועלה בהצלחה.');
+ }catch(e){alert('שגיאה בהעלאת הקובץ: '+(e?.message||e))}
+ finally{if(btn){btn.disabled=false;btn.textContent='העלאת מראה מקומות'}}
+}
+async function removeMarehMekomot(i){
+ if(profile?.role!=='admin')return;
+ const w=weeks[i];if(!w?.mareh_mekomot_path)return;
+ if(!confirm('למחוק את מראה המקומות של שבוע זה?'))return;
+ try{
+   const {error:dbErr}=await sb.from('study_weeks').update({mareh_mekomot_path:null,mareh_mekomot_name:null,mareh_mekomot_updated_at:null}).eq('id',w.id);
+   if(dbErr)throw dbErr;
+   const {error:stErr}=await sb.storage.from('mareh-mekomot').remove([w.mareh_mekomot_path]);
+   if(stErr)console.warn('Storage delete warning',stErr);
+   await loadWeeks();
+   const sel=document.getElementById('adminWeek');if(sel){sel.value=i;drawEditor()}
+ }catch(e){alert('שגיאה במחיקת הקובץ: '+(e?.message||e))}
+}
+
+async function saveWeek(i){
+ const w=weeks[i],newHespek=document.getElementById('a_hespek').value.trim();
+ const payload={
+  week_label:document.getElementById('a_week').value.trim(),
+  hebrew_dates:document.getElementById('a_dates').value.trim(),
+  parasha:document.getElementById('a_parasha').value.trim(),
+  zman:document.getElementById('a_zman').value.trim(),
+  hespek:newHespek,
+  perek:document.getElementById('a_perek').value.trim(),
+  kinyan_chochma:document.getElementById('a_kinyan').value.trim()
+ };
+ const hespekChanged=newHespek!==String(w.hespek||'').trim();
+ let futureUpdates=[];
+ if(hespekChanged && i<weeks.length-1){
+   const range=parseHespekRange(newHespek);
+   if(!range){
+     alert('לא ניתן לזהות את טווח הדפים. יש לכתוב לדוגמה: דף מ׳–מ״א או דף מ׳ ע״א – דף מ״א ע״ב');
+     return;
+   }
+   const lastDaf=range.end;
+   if(!confirm('שינוי ההספק ישפיע על כל המשך התכנית. כל השבועות הבאים יעודכנו אוטומטית לפי שני דפים לשבוע. האם להמשיך?'))return;
+   let next=lastDaf+1;
+   for(let j=i+1;j<weeks.length;j++){
+     futureUpdates.push({id:weeks[j].id,hespek:makeTwoDafHespek(next,range.withAmud)});
+     next+=2;
+   }
+ }
+ const {error}=await sb.rpc('recalculate_hespek',{
+   p_week_id:w.id,
+   p_week_label:payload.week_label,
+   p_hebrew_dates:payload.hebrew_dates,
+   p_parasha:payload.parasha,
+   p_zman:payload.zman,
+   p_hespek:payload.hespek,
+   p_perek:payload.perek,
+   p_kinyan_chochma:payload.kinyan_chochma,
+   p_updates:futureUpdates
+ });
+ if(error){alert('שגיאה בשמירה: '+error.message);return}
+ await loadWeeks();
+ const sel=document.getElementById('adminWeek');if(sel){sel.value=i;drawEditor();}
+ alert(futureUpdates.length?`השינויים נשמרו וההמשך עודכן אוטומטית ב-${futureUpdates.length} שבועות.`:'השינויים נשמרו בהצלחה');
+}
+
+sb.auth.onAuthStateChange((event,session)=>{
+ setTimeout(async()=>{
+  try{
+   await refreshSession();
+   if(document.getElementById('personal').classList.contains('active')) await renderPersonal();
+   await renderHomePersonal();
+  }catch(e){console.error('Auth refresh error',e)}
+ },0);
+});
+
+(async function init(){
+ try{await refreshSession();await loadWeeks();await renderHomePersonal()}catch(e){console.error('Initialization error',e);document.getElementById('currentWeek').innerHTML='<div class="card error">אירעה שגיאה בטעינת המערכת.</div>'}
+})();
+</script>
+</body>
+</html>
