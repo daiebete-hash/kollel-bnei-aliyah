@@ -1278,33 +1278,50 @@ function reviewHespekForPerek(perek){
  const name=String(perek||'').trim();
  return name?'חזרה על '+name:'חזרה על הפרק';
 }
+function perekNumber(perek){
+ const m=String(perek||'').match(/פרק\s+([^\s–-]+)/);
+ return m?hebrewToNumber(m[1]):null;
+}
+function findPerekForDaf(daf, fallback){
+ // Se usa la estructura original del programa como mapa de límites de פרקים.
+ // El primer daf normal registrado para cada פרק marca el comienzo de ese פרק.
+ const starts=[];
+ weeks.forEach(w=>{
+   if(isNoSedarWeek(w)||isReviewWeek(w)) return;
+   const n=perekNumber(w.perek), r=parseHespekRange(w.hespek);
+   if(n&&r) starts.push({n,start:r.start,perek:w.perek});
+ });
+ starts.sort((a,b)=>a.start-b.start);
+ let chosen=starts.filter(x=>x.start<=daf).pop();
+ return chosen?.perek||fallback||'';
+}
 function buildDynamicProgramUpdates(fromIndex, range){
  let next=range.end+1, updates=[];
- let currentPerek=String(weeks[fromIndex].perek||'').trim();
+ let currentPerek=findPerekForDaf(range.start, weeks[fromIndex].perek);
  let reviewDue=false, reviewPerek='';
  for(let j=fromIndex+1;j<weeks.length;j++){
    const w=weeks[j];
    if(isNoSedarWeek(w)) continue;
-   const weekPerek=String(w.perek||'').trim();
    if(reviewDue){
-     updates.push({id:w.id,hespek:reviewHespekForPerek(reviewPerek)});
+     updates.push({id:w.id,hespek:reviewHespekForPerek(reviewPerek),perek:reviewPerek});
      reviewDue=false;
-     // Esta misma semana conserva el perek anterior; el próximo estudio
-     // continuará ya dentro del perek que viene.
      continue;
    }
+   const weekPerek=findPerekForDaf(next,w.perek);
    if(currentPerek && weekPerek!==currentPerek){
-     updates.push({id:w.id,hespek:reviewHespekForPerek(currentPerek)});
+     updates.push({id:w.id,hespek:reviewHespekForPerek(currentPerek),perek:currentPerek});
      currentPerek=weekPerek;
      continue;
    }
-   updates.push({id:w.id,hespek:makeTwoDafHespek(next,range.withAmud)});
+   const hespek=makeTwoDafHespek(next,range.withAmud);
+   updates.push({id:w.id,hespek,perek:weekPerek});
    next+=2;
-   const nextStudy=weeks.slice(j+1).find(x=>!isNoSedarWeek(x));
-   if(nextStudy && String(nextStudy.perek||'').trim()!==weekPerek){
+   const nextPerek=findPerekForDaf(next,weekPerek);
+   if(nextPerek!==weekPerek){
      reviewDue=true;
      reviewPerek=weekPerek;
-   }
+     currentPerek=nextPerek;
+   }else currentPerek=weekPerek;
  }
  return updates;
 }
