@@ -1334,10 +1334,20 @@ async function saveWeek(i){
      return;
    }
    const lastDaf=range.end;
-   if(!confirm('שינוי ההספק ישפיע על כל המשך התכנית. כל השבועות הבאים יעודכנו אוטומטית לפי שני דפים לשבוע. האם להמשיך?'))return;
+   if(!confirm('שינוי ההספק ישפיע על כל המשך התכנית. שבועות לימוד רגילים יעודכנו אוטומטית לפי שני דפים לשבוע, ושבועות חזרה ובין הזמנים יישמרו ללא שינוי. האם להמשיך?'))return;
    let next=lastDaf+1;
    for(let j=i+1;j<weeks.length;j++){
-     futureUpdates.push({id:weeks[j].id,hespek:makeTwoDafHespek(next,range.withAmud)});
+     const futureWeek=weeks[j];
+     // Las semanas de חזרה son parte fija de la estructura del programa:
+     // se conservan exactamente y no consumen dos daf del recorrido.
+     if(/^\s*חזרה\s+על\s+פרק/.test(String(futureWeek.hespek||''))){
+       continue;
+     }
+     // También se conservan semanas sin seder (por ejemplo בין הזמנים).
+     if(/אין\s+סדרים/.test(String(futureWeek.hespek||''))){
+       continue;
+     }
+     futureUpdates.push({id:futureWeek.id,hespek:makeTwoDafHespek(next,range.withAmud)});
      next+=2;
    }
  }
