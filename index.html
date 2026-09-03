@@ -198,6 +198,40 @@ h3{margin:0 0 10px}
 .progress-track{height:11px;background:#e7dfd1;border-radius:999px;overflow:hidden;margin-top:11px}
 .progress-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#aa7926,#dfbd67)}
 
+/* INTERACTIVE STUDY PROGRAM */
+.program-table-card{padding:0;overflow:hidden;margin-top:18px}
+.program-table-head{padding:18px 20px;border-bottom:1px solid #eadfce;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.program-table-head h3{margin:0;color:var(--navy);font-size:21px}
+.program-table-scroll{overflow:auto;max-height:560px}
+.program-table{width:100%;border-collapse:collapse;min-width:720px}
+.program-table th{position:sticky;top:0;background:#102b45;color:#fff;padding:13px 10px;text-align:right;font-size:14px;z-index:2}
+.program-table td{padding:12px 10px;border-bottom:1px solid #eee5d8;vertical-align:middle}
+.program-table tr{cursor:pointer;transition:.15s}
+.program-table tbody tr:hover{background:#fff9ed}
+.program-table tr.current-row{background:#fff1cf;box-shadow:inset 4px 0 0 var(--gold)}
+.program-table tr.selected-row{background:#f3ead8}
+.program-week-no{font-weight:900;color:var(--navy);white-space:nowrap}
+.program-hespek{font-weight:800}
+.program-perek{color:#73501d;font-weight:800}
+.table-status{font-size:12px;padding:5px 9px;border-radius:999px;background:#eee8dd;white-space:nowrap}
+.table-status.current{background:#e6c579;color:#51360f;font-weight:900}
+.plan-progress-card{margin-top:18px;padding:22px}
+.plan-progress-card h3{margin:0 0 5px;color:var(--navy);font-size:22px}
+.chart-note{color:#6f6659;margin:0 0 18px}
+.progress-overview{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 22px}
+.metric-box{border:1px solid #eadfce;border-radius:16px;padding:13px;text-align:center;background:#fffdf8}
+.metric-num{font-size:24px;font-weight:900;color:var(--navy)}
+.metric-label{font-size:13px;color:#746a5b}
+.masechet-chart{display:flex;gap:4px;height:26px;border-radius:9px;overflow:hidden;margin:10px 0 8px}
+.chart-seg{flex:1;background:#e8e1d5;min-width:3px}
+.chart-seg.done{background:#3f9b67}.chart-seg.partial{background:#d79a34}
+.perek-chart-list{display:grid;gap:13px}
+.perek-row{border:1px solid #eee3d4;border-radius:15px;padding:13px 15px}
+.perek-top{display:flex;justify-content:space-between;gap:12px;align-items:center;font-weight:800;color:var(--navy)}
+.perek-track{height:11px;border-radius:999px;background:#e8e1d5;overflow:hidden;margin-top:9px}
+.perek-fill{height:100%;background:linear-gradient(90deg,#aa7926,#dfbd67);border-radius:999px}
+@media(max-width:650px){.progress-overview{grid-template-columns:1fr}.program-table-head{align-items:flex-start;flex-direction:column}.program-table-scroll{max-height:440px}}
+
 /* PLAN + FORMS */
 #plan>.card:first-child,#personal #authBox,#admin .card:first-child{margin-top:20px}
 .row{display:flex;gap:12px;flex-wrap:wrap}
@@ -583,7 +617,9 @@ nav button:hover{color:#fff}
    <label>בחירת שבוע</label>
    <select id="weekSelect"></select>
  </div>
+ <div id="programTableWrap" class="card program-table-card"></div>
  <div id="selectedWeek"></div>
+ <div id="planProgress" class="card plan-progress-card"></div>
 </section>
 
 <section id="personal" class="view">
@@ -777,6 +813,15 @@ async function loadWeeks(){
  ).join('');
  sel.value=currentIndex;
  renderSelected();
+ renderProgramTable();
+ renderPlanProgress();
+}
+function renderProgramTable(){
+ const el=document.getElementById('programTableWrap'); if(!el)return;
+ el.innerHTML=`<div class="program-table-head"><div><h3>לוח התכנית המלא</h3><div class="meta">לחץ על שורה כדי לעבור ישירות לשבוע</div></div><div class="badge">${weeks.length} שבועות</div></div>
+ <div class="program-table-scroll"><table class="program-table"><thead><tr><th>#</th><th>זמן</th><th>שבוע</th><th>תאריכים</th><th>ההספק</th><th>פרק</th><th>מצב</th></tr></thead>
+ <tbody>${weeks.map((w,i)=>`<tr data-week-row="${i}" class="${i===currentIndex?'current-row':''}"><td class="program-week-no">${esc(w.week_no??i+1)}</td><td>${esc(w.zman||'—')}</td><td>${esc(w.week_label||'—')}</td><td>${esc(w.hebrew_dates||'—')}</td><td class="program-hespek">${esc(w.hespek||'—')}</td><td class="program-perek">${esc(w.perek||'—')}</td><td><span class="table-status ${i===currentIndex?'current':''}">${i===currentIndex?'השבוע הנוכחי':'צפייה'}</span></td></tr>`).join('')}</tbody></table></div>`;
+ el.querySelectorAll('[data-week-row]').forEach(row=>row.onclick=()=>{const i=Number(row.dataset.weekRow);document.getElementById('weekSelect').value=i;renderSelected();});
 }
 function renderSelected(){
  const idx=Number(document.getElementById('weekSelect').value)||0;
@@ -798,6 +843,34 @@ function renderSelected(){
    document.getElementById('weekSelect').value=btn.dataset.zmanStart;
    renderSelected();
  });
+ renderProgramTable();
+ renderPlanProgress();
+}
+function perekKey(w){return String(w.perek||'ללא פרק').trim()||'ללא פרק'}
+async function renderPlanProgress(){
+ const el=document.getElementById('planProgress'); if(!el)return;
+ if(!user){
+   el.innerHTML='<h3>גרף התקדמות</h3><p class="chart-note">התחבר לאזור האישי כדי לראות את ההתקדמות שלך לאורך כל המסכת ולפי פרקים.</p>';
+   return;
+ }
+ const {data,error}=await sb.from('weekly_progress').select('study_week_id,status').eq('user_id',user.id);
+ if(error){el.innerHTML='<h3>גרף התקדמות</h3><p class="error">לא ניתן לטעון את נתוני ההתקדמות.</p>';return}
+ const map=new Map((data||[]).map(r=>[String(r.study_week_id),r.status]));
+ const counts={completed:0,partial:0,not_started:0};
+ weeks.forEach(w=>counts[map.get(String(w.id))||'not_started']++);
+ const weighted=weeks.length?Math.round(((counts.completed+counts.partial*.5)/weeks.length)*100):0;
+ const masechet=weeks.map(w=>{const s=map.get(String(w.id))||'not_started';return '<span class="chart-seg '+(s==='completed'?'done':s==='partial'?'partial':'')+'"></span>'}).join('');
+ const groups={};
+ weeks.forEach(w=>{const k=perekKey(w);(groups[k]??=[]).push(w)});
+ const perekRows=Object.entries(groups).map(([p,arr])=>{
+   let score=0;arr.forEach(w=>{const s=map.get(String(w.id))||'not_started';score+=s==='completed'?1:s==='partial'?.5:0});
+   const pct=arr.length?Math.round(score/arr.length*100):0;
+   return '<div class="perek-row"><div class="perek-top"><span>'+esc(p)+'</span><span>'+pct+'%</span></div><div class="perek-track"><div class="perek-fill" style="width:'+pct+'%"></div></div><div class="meta">'+arr.length+' שבועות</div></div>';
+ }).join('');
+ el.innerHTML=`<h3>התקדמות בתכנית הלימוד</h3><p class="chart-note">מעקב אישי על פני כל מסכת סנהדרין ובחלוקה לפי פרקים.</p>
+ <div class="progress-overview"><div class="metric-box"><div class="metric-num">${weighted}%</div><div class="metric-label">התקדמות משוקללת</div></div><div class="metric-box"><div class="metric-num">${counts.completed}</div><div class="metric-label">שבועות הושלמו</div></div><div class="metric-box"><div class="metric-num">${weeks.length}</div><div class="metric-label">סה״כ שבועות</div></div></div>
+ <div class="perek-top"><span>כל המסכת</span><span>${weighted}%</span></div><div class="masechet-chart">${masechet}</div><div class="meta">ירוק: הושלם · זהב: חלקי · אפור: טרם התחיל</div>
+ <h3 style="margin-top:24px">חלוקה לפי פרקים</h3><div class="perek-chart-list">${perekRows}</div>`;
 }
 document.getElementById('weekSelect').addEventListener('change',renderSelected);
 const goCurrentBtn=document.getElementById('goCurrent');
