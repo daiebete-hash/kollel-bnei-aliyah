@@ -1268,10 +1268,29 @@ function parseHespekRange(hespek){
  if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)return null;
  return {start,end,withAmud:/ע״?[אב]/.test(h)};
 }
-function makeTwoDafHespek(start,withAmud){
- const end=start+1;
- if(withAmud) return `דף ${numberToHebrew(start)} ע״א – דף ${numberToHebrew(end)} ע״ב`;
- return `דף ${numberToHebrew(start)}–${numberToHebrew(end)}`;
+function isReviewWeek(w){return /^\s*חזרה\s+על\s+פרק/.test(String(w?.hespek||''))}
+function isNoSedarWeek(w){return /אין\s+סדרים/.test(String(w?.hespek||''))}
+function reviewHespekForPerek(perek){
+ const name=String(perek||'').trim();
+ return name?'חזרה על '+name:'חזרה על הפרק';
+}
+function buildDynamicProgramUpdates(fromIndex, range){
+ let next=range.end+1, updates=[], pendingReviewPerek=null;
+ for(let j=fromIndex+1;j<weeks.length;j++){
+   const w=weeks[j];
+   if(isNoSedarWeek(w)) continue;
+   if(pendingReviewPerek){
+     updates.push({id:w.id,hespek:reviewHespekForPerek(pendingReviewPerek)});
+     pendingReviewPerek=null;
+     continue;
+   }
+   const currentPerek=String(w.perek||'').trim();
+   updates.push({id:w.id,hespek:makeTwoDafHespek(next,range.withAmud)});
+   next+=2;
+   const later=weeks.slice(j+1).find(x=>!isNoSedarWeek(x));
+   if(later && String(later.perek||'').trim()!==currentPerek) pendingReviewPerek=currentPerek;
+ }
+ return updates;
 }
 async function openMarehMekomot(w,download){
  if(!user){show('personal');message('יש להתחבר כדי לצפות או להוריד את מראה המקומות.');return}
@@ -1334,22 +1353,8 @@ async function saveWeek(i){
      return;
    }
    const lastDaf=range.end;
-   if(!confirm('שינוי ההספק ישפיע על כל המשך התכנית. שבועות לימוד רגילים יעודכנו אוטומטית לפי שני דפים לשבוע, ושבועות חזרה ובין הזמנים יישמרו ללא שינוי. האם להמשיך?'))return;
-   let next=lastDaf+1;
-   for(let j=i+1;j<weeks.length;j++){
-     const futureWeek=weeks[j];
-     // Las semanas de חזרה son parte fija de la estructura del programa:
-     // se conservan exactamente y no consumen dos daf del recorrido.
-     if(/^\s*חזרה\s+על\s+פרק/.test(String(futureWeek.hespek||''))){
-       continue;
-     }
-     // También se conservan semanas sin seder (por ejemplo בין הזמנים).
-     if(/אין\s+סדרים/.test(String(futureWeek.hespek||''))){
-       continue;
-     }
-     futureUpdates.push({id:futureWeek.id,hespek:makeTwoDafHespek(next,range.withAmud)});
-     next+=2;
-   }
+   if(!confirm('שינוי ההספק ישפיע על כל המשך התכנית. התכנית תיבנה מחדש אוטומטית לפי שני דפים לשבוע. שבוע חזרה יעבור תמיד לשבוע שלאחר סיום כל פרק, ובין הזמנים יישמר ללא שינוי. האם להמשיך?'))return;
+   futureUpdates=buildDynamicProgramUpdates(i,range);
  }
  const {error}=await sb.rpc('recalculate_hespek',{
    p_week_id:w.id,
