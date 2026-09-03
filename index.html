@@ -1268,6 +1268,10 @@ function parseHespekRange(hespek){
  if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)return null;
  return {start,end,withAmud:/ע״?[אב]/.test(h)};
 }
+function makeTwoDafHespek(start,withAmud){
+ const a=numberToHebrew(start), b=numberToHebrew(start+1);
+ return withAmud?'דף '+a+' ע״א – דף '+b+' ע״ב':'דף '+a+' – דף '+b;
+}
 function isReviewWeek(w){return /^\s*חזרה\s+על\s+פרק/.test(String(w?.hespek||''))}
 function isNoSedarWeek(w){return /אין\s+סדרים/.test(String(w?.hespek||''))}
 function reviewHespekForPerek(perek){
