@@ -1278,21 +1278,22 @@ function reviewHespekForPerek(perek){
  const name=String(perek||'').trim();
  return name?'חזרה על '+name:'חזרה על הפרק';
 }
-function perekNumber(perek){
- const m=String(perek||'').match(/פרק\s+([^\s–-]+)/);
- return m?hebrewToNumber(m[1]):null;
-}
-function findPerekForDaf(daf, fallback){
- // Se usa la estructura original del programa como mapa de límites de פרקים.
- // El primer daf normal registrado para cada פרק marca el comienzo de ese פרק.
- const starts=[];
- weeks.forEach(w=>{
-   if(isNoSedarWeek(w)||isReviewWeek(w)) return;
-   const n=perekNumber(w.perek), r=parseHespekRange(w.hespek);
-   if(n&&r) starts.push({n,start:r.start,perek:w.perek});
- });
- starts.sort((a,b)=>a.start-b.start);
- let chosen=starts.filter(x=>x.start<=daf).pop();
+const PEREK_BOUNDARIES=[
+ {start:2,perek:'פרק א׳ – דיני ממונות בשלשה'},
+ {start:19,perek:'פרק ב׳ – כהן גדול'},
+ {start:25,perek:'פרק ג׳ – דיני ממונות'},
+ {start:35,perek:'פרק ד׳ – מיתות בית דין'},
+ {start:43,perek:'פרק ה׳ – כיצד העדים נעשים זוממין'},
+ {start:47,perek:'פרק ו׳ – הנשרפין'},
+ {start:53,perek:'פרק ז׳ – בן סורר ומורה'},
+ {start:73,perek:'פרק ח׳ – הנחנקין'},
+ {start:81,perek:'פרק ט׳ – הנשרפין'},
+ {start:91,perek:'פרק י׳ – אלו הן הנחנקין'},
+ {start:97,perek:'פרק י״א – חלק'}
+];
+function findPerekForDaf(daf,fallback){
+ let chosen=null;
+ for(const item of PEREK_BOUNDARIES){if(daf>=item.start)chosen=item;else break}
  return chosen?.perek||fallback||'';
 }
 function buildDynamicProgramUpdates(fromIndex, range){
