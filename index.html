@@ -1279,20 +1279,32 @@ function reviewHespekForPerek(perek){
  return name?'חזרה על '+name:'חזרה על הפרק';
 }
 function buildDynamicProgramUpdates(fromIndex, range){
- let next=range.end+1, updates=[], pendingReviewPerek=null;
+ let next=range.end+1, updates=[];
+ let currentPerek=String(weeks[fromIndex].perek||'').trim();
+ let reviewDue=false, reviewPerek='';
  for(let j=fromIndex+1;j<weeks.length;j++){
    const w=weeks[j];
    if(isNoSedarWeek(w)) continue;
-   if(pendingReviewPerek){
-     updates.push({id:w.id,hespek:reviewHespekForPerek(pendingReviewPerek)});
-     pendingReviewPerek=null;
+   const weekPerek=String(w.perek||'').trim();
+   if(reviewDue){
+     updates.push({id:w.id,hespek:reviewHespekForPerek(reviewPerek)});
+     reviewDue=false;
+     // Esta misma semana conserva el perek anterior; el próximo estudio
+     // continuará ya dentro del perek que viene.
      continue;
    }
-   const currentPerek=String(w.perek||'').trim();
+   if(currentPerek && weekPerek!==currentPerek){
+     updates.push({id:w.id,hespek:reviewHespekForPerek(currentPerek)});
+     currentPerek=weekPerek;
+     continue;
+   }
    updates.push({id:w.id,hespek:makeTwoDafHespek(next,range.withAmud)});
    next+=2;
-   const later=weeks.slice(j+1).find(x=>!isNoSedarWeek(x));
-   if(later && String(later.perek||'').trim()!==currentPerek) pendingReviewPerek=currentPerek;
+   const nextStudy=weeks.slice(j+1).find(x=>!isNoSedarWeek(x));
+   if(nextStudy && String(nextStudy.perek||'').trim()!==weekPerek){
+     reviewDue=true;
+     reviewPerek=weekPerek;
+   }
  }
  return updates;
 }
