@@ -230,6 +230,16 @@ h3{margin:0 0 10px}
 .perek-top{display:flex;justify-content:space-between;gap:12px;align-items:center;font-weight:800;color:var(--navy)}
 .perek-track{height:11px;border-radius:999px;background:#e8e1d5;overflow:hidden;margin-top:9px}
 .perek-fill{height:100%;background:linear-gradient(90deg,#aa7926,#dfbd67);border-radius:999px}
+.makeup-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:14px}
+.makeup-item{border:1px solid #eadfce;border-radius:14px;padding:12px;background:#fffdf8}
+.makeup-title{font-weight:900;color:var(--navy);margin-bottom:4px}
+.makeup-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.makeup-actions button{font-size:13px;padding:8px 10px}
+.makeup-actions .done{background:#2f9a5b;color:#fff;border:0}
+.makeup-actions .partial{background:#d99524;color:#fff;border:0}
+.makeup-actions .notdone{background:#c84949;color:#fff;border:0}
+.makeup-current{border-color:#d7ad54;box-shadow:0 0 0 2px #f7ead0}
+
 @media(max-width:650px){.progress-overview{grid-template-columns:1fr}.program-table-head{align-items:flex-start;flex-direction:column}.program-table-scroll{max-height:440px}}
 
 /* PLAN + FORMS */
@@ -1000,6 +1010,12 @@ async function renderPersonal(){
  </div>
 
  <div class="card">
+   <span class="badge">השלמת שבועות קודמים</span>
+   <h3 style="margin-top:12px">עדכון השלמות</h3>
+   <p class="meta">אפשר לסמן גם שבועות קודמים לשבוע הנוכחי. בחר שבוע ועדכן את מצב הלימוד שלו.</p>
+   <div class="makeup-grid" id="makeupList"></div>
+ </div>
+ <div class="card">
    <span class="badge">היסטוריה</span>
    <h3 style="margin-top:12px">היסטוריית ההתקדמות</h3>
    <p class="meta">מצב הלימוד וקנין חכמה בכל שבוע.</p>
@@ -1009,6 +1025,29 @@ async function renderPersonal(){
  document.getElementById('logoutBtn').onclick=logout;
  member.querySelectorAll('[data-status]').forEach(btn=>btn.onclick=()=>saveProgress(btn.dataset.status));
  member.querySelectorAll('[data-kinyan]').forEach(btn=>btn.onclick=()=>saveKinyan(btn.dataset.kinyan));
+ await renderMakeupWeeks();
+}
+async function renderMakeupWeeks(){
+ const box=document.getElementById('makeupList'); if(!box||!user)return;
+ const previous=weeks.slice(0,currentIndex);
+ if(!previous.length){box.innerHTML='<div class="meta">עדיין אין שבועות קודמים להשלמה.</div>';return}
+ const {data,error}=await sb.from('weekly_progress').select('study_week_id,status').eq('user_id',user.id);
+ if(error){box.innerHTML='<div class="error">לא ניתן לטעון את נתוני ההשלמות.</div>';return}
+ const map=new Map((data||[]).map(x=>[String(x.study_week_id),x.status]));
+ box.innerHTML=previous.map(w=>{
+   const s=map.get(String(w.id))||'not_started';
+   const label=s==='completed'?'✓ הושלם':s==='partial'?'◐ חלקי':'○ טרם הושלם';
+   return '<div class="makeup-item"><div class="makeup-title">'+esc(w.week_label||'שבוע')+'</div><div class="meta">'+esc(w.hespek||'—')+'</div><div class="meta">מצב נוכחי: '+label+'</div><div class="makeup-actions"><button class="done" data-makeup="'+esc(w.id)+'" data-status="completed">✓ הושלם</button><button class="partial" data-makeup="'+esc(w.id)+'" data-status="partial">◐ חלקי</button><button class="notdone" data-makeup="'+esc(w.id)+'" data-status="not_started">לא הושלם</button></div></div>';
+ }).join('');
+ box.querySelectorAll('[data-makeup]').forEach(btn=>btn.onclick=()=>saveProgressForWeek(btn.dataset.makeup,btn.dataset.status));
+}
+async function saveProgressForWeek(weekId,status){
+ if(!user)return;
+ const existing=(await sb.from('weekly_progress').select('kinyan_status').eq('user_id',user.id).eq('study_week_id',weekId).maybeSingle()).data;
+ const {error}=await sb.from('weekly_progress').upsert({user_id:user.id,study_week_id:weekId,status,kinyan_status:existing?.kinyan_status||'not_started'},{onConflict:'user_id,study_week_id'});
+ if(error){alert('שגיאה: '+error.message);return}
+ await renderPersonal();
+ if(document.getElementById('plan').classList.contains('active')) await renderPlanProgress();
 }
 async function saveProgress(status){
  if(!user||!weeks[currentIndex])return;
